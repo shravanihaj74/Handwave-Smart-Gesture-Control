@@ -202,36 +202,6 @@ pip install opencv-python mediapipe pyautogui numpy pycaw screen-brightness-cont
 
 ---
 
-# 🤝 Contributing
-
-Contributions are welcome!
-
-## Steps to Contribute
-
-1️⃣ Fork the Repository  
-
-2️⃣ Create Feature Branch
-
-```bash
-git checkout -b feature-name
-```
-
-3️⃣ Commit Changes
-
-```bash
-git commit -m "Added new feature"
-```
-
-4️⃣ Push to GitHub
-
-```bash
-git push origin feature-name
-```
-
-5️⃣ Open Pull Request 🎉
-
----
-
 # 📄 License
 
 This project is licensed under the **MIT License**.
