@@ -8,10 +8,28 @@ from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 import screen_brightness_control as sbc
 import mediapipe as mp
 import pyautogui
+import os
+import sys
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 
 cap = cv.VideoCapture(0)
 cap.set(cv.CAP_PROP_FRAME_WIDTH, 1200)
 cap.set(cv.CAP_PROP_FRAME_HEIGHT, 700)
+
+if not cap.isOpened():
+    import ctypes
+    ctypes.windll.user32.MessageBoxW(0, "Could not access the webcam (Camera index 0). Please ensure your camera is plugged in and not in use by another application.", "HandWave Error", 0x10)
+    sys.exit(1)
 
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
@@ -27,10 +45,30 @@ minBrightness, maxBrightness = 0, 100
 prev_brightness = None
 prev_volume = None
 prev_gesture = None
+show_osd = True  # Flag to display OSD overlays
+prev_middle_y = None  # For scroll detection
+click_cooldown = 0  # Timestamp of last click
+scroll_cooldown = 0  # Timestamp of last scroll action
+mouse_sensitivity = 1.5  # Scaling factor for cursor movement
+scroll_sensitivity = 2   # Lines per pixel for scrolling
 
-# Function to detect a fist (all fingers folded)
+
 def is_fist(landmarks):
     return all(landmarks[i].y > landmarks[i - 2].y for i in range(8, 21, 4))
+
+screen_width, screen_height = pyautogui.size()
+
+# Function to move the cursor based on index fingertip position
+def move_cursor(x, y):
+    # Map webcam coordinates to screen size
+    screen_x = np.interp(x, [0, w], [0, screen_width]) * mouse_sensitivity
+    screen_y = np.interp(y, [0, h], [0, screen_height]) * mouse_sensitivity
+    pyautogui.moveTo(int(screen_x), int(screen_y))
+
+# Detect thumb up gesture to toggle OSD visibility
+def is_thumb_up(landmarks):
+    # Thumb tip higher (smaller y) than thumb MCP (landmark 2) and higher than wrist (landmark 0)
+    return landmarks[4].y < landmarks[2].y and landmarks[4].y < landmarks[0].y
 
 # Function to detect "L" gesture (thumb and index finger extended)
 def is_L_gesture(landmarks):
@@ -80,13 +118,13 @@ def overlay_icon(frame, icon, x, y, size=(40, 40)):
 
 # Load icons globally with error handling
 try:
-    speaker_icon = cv.imread("speaker.png", cv.IMREAD_UNCHANGED)
+    speaker_icon = cv.imread(resource_path("speaker.png"), cv.IMREAD_UNCHANGED)
     if speaker_icon is not None:
         speaker_icon = cv.resize(speaker_icon, (40, 40))
     else:
         print("Warning: speaker.png not found. Volume icon will not be displayed.")
 
-    brightness_icon = cv.imread("brightness.png", cv.IMREAD_UNCHANGED)
+    brightness_icon = cv.imread(resource_path("brightness.png"), cv.IMREAD_UNCHANGED)
     if brightness_icon is not None:
         brightness_icon = cv.resize(brightness_icon, (40, 40))
     else:
@@ -143,6 +181,10 @@ screenshot_taken = False  # Track screenshot state
 
 while True:
     success, frame = cap.read()
+    if not success or frame is None:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, "Failed to read frame from webcam. The camera may have been disconnected.", "HandWave Error", 0x10)
+        break
     frame = cv.flip(frame, 1)
     rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
     results = hands.process(rgb_frame)
